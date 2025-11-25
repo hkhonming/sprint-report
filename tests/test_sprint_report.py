@@ -61,11 +61,23 @@ def test_find_issue_in_jira_sprint_no_api(mock_jira_api):
     assert analytics == {}
 
 
-def test_find_issue_in_jira_sprint_with_issues(mock_jira_api, mock_issue):
-    """Test find_issue_in_jira_sprint with issues"""
+def setup_sprint_test_issues(mock_issue, story_points_field='customfield_10016', completed_points=5.0, all_issue_points=3.0):
+    """Helper function to setup mock issues for sprint tests
+    
+    Args:
+        mock_issue: The base mock issue fixture
+        story_points_field: Custom field name for story points
+        completed_points: Story points for completed issue
+        all_issue_points: Story points for additional issue
+        
+    Returns:
+        Tuple of (completed_issue, all_issue)
+    """
     # Setup mock completed issue without parent (no epic)
     completed_issue = mock_issue
     completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
+    # Set story points on the configured field
+    setattr(completed_issue.fields, story_points_field, completed_points)
     # Remove parent attribute to avoid epic lookup
     if hasattr(completed_issue.fields, "parent"):
         delattr(completed_issue.fields, "parent")
@@ -74,9 +86,16 @@ def test_find_issue_in_jira_sprint_with_issues(mock_jira_api, mock_issue):
     all_issue = Mock()
     all_issue.key = "TEST-124"
     all_issue.fields = Mock()
-    all_issue.fields.customfield_10016 = 3.0  # Story points
+    setattr(all_issue.fields, story_points_field, all_issue_points)
     if hasattr(all_issue.fields, "parent"):
         delattr(all_issue.fields, "parent")
+    
+    return completed_issue, all_issue
+
+
+def test_find_issue_in_jira_sprint_with_issues(mock_jira_api, mock_issue):
+    """Test find_issue_in_jira_sprint with issues"""
+    completed_issue, all_issue = setup_sprint_test_issues(mock_issue)
     
     mock_jira_api.search_issues = Mock(side_effect=[
         [completed_issue],  # First call for completed issues
@@ -112,21 +131,12 @@ def test_print_analytics_complete_data(capsys):
 
 def test_find_issue_with_custom_story_points_field(mock_jira_api, mock_issue):
     """Test find_issue_in_jira_sprint with a custom story points field"""
-    # Setup mock completed issue without parent (no epic)
-    completed_issue = mock_issue
-    completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
-    # Use a different custom field for story points
-    completed_issue.fields.customfield_12345 = 8.0  # Custom story points field
-    if hasattr(completed_issue.fields, "parent"):
-        delattr(completed_issue.fields, "parent")
-    
-    # Setup mock all issues (including the completed one)
-    all_issue = Mock()
-    all_issue.key = "TEST-124"
-    all_issue.fields = Mock()
-    all_issue.fields.customfield_12345 = 5.0  # Custom story points field
-    if hasattr(all_issue.fields, "parent"):
-        delattr(all_issue.fields, "parent")
+    completed_issue, all_issue = setup_sprint_test_issues(
+        mock_issue,
+        story_points_field='customfield_12345',
+        completed_points=8.0,
+        all_issue_points=5.0
+    )
     
     mock_jira_api.search_issues = Mock(side_effect=[
         [completed_issue],  # First call for completed issues

@@ -3,7 +3,7 @@ import re
 import sys
 
 from jira import JIRA, JIRAError
-from SprintReport.jira_api import jira_api
+from SprintReport.jira_api import jira_api, DEFAULT_STORY_POINTS_FIELD
 
 jira_server = ""
 
@@ -21,7 +21,7 @@ def get_bug_id(summary):
     return id
 
 
-def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only, story_points_field='customfield_10016'):
+def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only, story_points_field=DEFAULT_STORY_POINTS_FIELD):
     if not jira_api or not project:
         return {}, {}
 

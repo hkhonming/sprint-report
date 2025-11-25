@@ -7,6 +7,9 @@ import json
 
 from jira import JIRA
 
+# Default custom field ID for story points (most common in JIRA instances)
+DEFAULT_STORY_POINTS_FIELD = 'customfield_10016'
+
 class jira_api():
     def __init__(self,credstore="{}/.jira.token".format(os.path.expanduser('~'))):
         snap_home = os.getenv("SNAP_USER_COMMON")
@@ -20,8 +23,8 @@ class jira_api():
                 self.server = config['jira-server']
                 self.login = config['jira-login']
                 self.token = config['jira-token']
-                # Story points field ID - defaults to customfield_10016 if not specified
-                self.story_points_field = config.get('story-points-field', 'customfield_10016')
+                # Story points field ID - defaults to DEFAULT_STORY_POINTS_FIELD if not specified
+                self.story_points_field = config.get('story-points-field', DEFAULT_STORY_POINTS_FIELD)
         except (FileNotFoundError, json.JSONDecodeError):
             print('JIRA Token information file {} could not be found or parsed.'.format(self.credstore))
             print('')
@@ -33,8 +36,8 @@ class jira_api():
             self.token = input('Please enter your JIRA API Token (see https://id.atlassian.com/manage-profile/security/api-tokens) : ')
             print('')
             print('Story points are stored in a custom field in JIRA. The field ID can vary between JIRA instances.')
-            story_points_field = input('Please enter your story points field ID (press Enter to use default customfield_10016): ').strip()
-            self.story_points_field = story_points_field if story_points_field else 'customfield_10016'
+            story_points_field = input(f'Please enter your story points field ID (press Enter to use default {DEFAULT_STORY_POINTS_FIELD}): ').strip()
+            self.story_points_field = story_points_field if story_points_field else DEFAULT_STORY_POINTS_FIELD
             save_token = input('Do you want to save those credentials for future use or lp-to-jira? (Y/n) ')
             if save_token != 'n':
                 try:
