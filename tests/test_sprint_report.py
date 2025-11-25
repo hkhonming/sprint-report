@@ -110,6 +110,40 @@ def test_print_analytics_complete_data(capsys):
     assert "35.0/50.0 completed (70.0%)" in captured.out
 
 
+def test_find_issue_with_custom_story_points_field(mock_jira_api, mock_issue):
+    """Test find_issue_in_jira_sprint with a custom story points field"""
+    # Setup mock completed issue without parent (no epic)
+    completed_issue = mock_issue
+    completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
+    # Use a different custom field for story points
+    completed_issue.fields.customfield_12345 = 8.0  # Custom story points field
+    if hasattr(completed_issue.fields, "parent"):
+        delattr(completed_issue.fields, "parent")
+    
+    # Setup mock all issues (including the completed one)
+    all_issue = Mock()
+    all_issue.key = "TEST-124"
+    all_issue.fields = Mock()
+    all_issue.fields.customfield_12345 = 5.0  # Custom story points field
+    if hasattr(all_issue.fields, "parent"):
+        delattr(all_issue.fields, "parent")
+    
+    mock_jira_api.search_issues = Mock(side_effect=[
+        [completed_issue],  # First call for completed issues
+        [completed_issue, all_issue]  # Second call for all issues
+    ])
+    
+    # Use the custom story points field
+    issues, analytics = find_issue_in_jira_sprint(mock_jira_api, "TEST", "Sprint 1", False, 'customfield_12345')
+    
+    assert len(issues) == 1
+    assert "TEST-123" in issues
+    assert analytics["total_issues"] == 2
+    assert analytics["completed_issues"] == 1
+    assert analytics["total_story_points"] == 13.0  # 8.0 + 5.0
+    assert analytics["completed_story_points"] == 8.0
+
+
 def test_print_analytics_no_story_points(capsys):
     """Test print_analytics with no story points"""
     analytics = {
