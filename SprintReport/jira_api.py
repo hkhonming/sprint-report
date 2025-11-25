@@ -20,6 +20,8 @@ class jira_api():
                 self.server = config['jira-server']
                 self.login = config['jira-login']
                 self.token = config['jira-token']
+                # Story points field ID - defaults to customfield_10016 if not specified
+                self.story_points_field = config.get('story-points-field', 'customfield_10016')
         except (FileNotFoundError, json.JSONDecodeError):
             print('JIRA Token information file {} could not be found or parsed.'.format(self.credstore))
             print('')
@@ -29,6 +31,10 @@ class jira_api():
             self.server = input('Please enter your jira server address : ')
             self.login = input('Please enter your email login for JIRA : ')
             self.token = input('Please enter your JIRA API Token (see https://id.atlassian.com/manage-profile/security/api-tokens) : ')
+            print('')
+            print('Story points are stored in a custom field in JIRA. The field ID can vary between JIRA instances.')
+            story_points_field = input('Please enter your story points field ID (press Enter to use default customfield_10016): ').strip()
+            self.story_points_field = story_points_field if story_points_field else 'customfield_10016'
             save_token = input('Do you want to save those credentials for future use or lp-to-jira? (Y/n) ')
             if save_token != 'n':
                 try:
@@ -36,6 +42,7 @@ class jira_api():
                     data['jira-server'] = self.server
                     data['jira-login'] = self.login
                     data['jira-token'] = self.token
+                    data['story-points-field'] = self.story_points_field
                     with open(self.credstore,'w+') as f:
                         json.dump(data,(f))
                 except (FileNotFoundError, json.JSONDecodeError):

@@ -56,7 +56,7 @@ def test_insert_bug_link():
 
 def test_find_issue_in_jira_sprint_no_api(mock_jira_api):
     """Test find_issue_in_jira_sprint with no API"""
-    issues, analytics = find_issue_in_jira_sprint(None, "TEST", "Sprint 1")
+    issues, analytics = find_issue_in_jira_sprint(None, "TEST", "Sprint 1", False)
     assert issues == {}
     assert analytics == {}
 
@@ -83,7 +83,7 @@ def test_find_issue_in_jira_sprint_with_issues(mock_jira_api, mock_issue):
         [completed_issue, all_issue]  # Second call for all issues
     ])
     
-    issues, analytics = find_issue_in_jira_sprint(mock_jira_api, "TEST", "Sprint 1")
+    issues, analytics = find_issue_in_jira_sprint(mock_jira_api, "TEST", "Sprint 1", False, 'customfield_10016')
     
     assert len(issues) == 1
     assert "TEST-123" in issues
@@ -158,6 +158,7 @@ def test_main_with_analytics_only_flag(mock_jira_class, mock_jira_api_class, cap
     mock_api_instance.server = "https://jira.example.com"
     mock_api_instance.login = "test@example.com"
     mock_api_instance.token = "test-token"
+    mock_api_instance.story_points_field = "customfield_10016"
     mock_jira_api_class.return_value = mock_api_instance
     
     mock_jira_instance = Mock()
@@ -204,6 +205,7 @@ def test_main_default_mode_all(mock_jira_class, mock_jira_api_class, capsys, moc
     mock_api_instance.server = "https://jira.example.com"
     mock_api_instance.login = "test@example.com"
     mock_api_instance.token = "test-token"
+    mock_api_instance.story_points_field = "customfield_10016"
     mock_jira_api_class.return_value = mock_api_instance
     
     mock_jira_instance = Mock()
@@ -250,6 +252,7 @@ def test_main_with_report_only_flag(mock_jira_class, mock_jira_api_class, capsys
     mock_api_instance.server = "https://jira.example.com"
     mock_api_instance.login = "test@example.com"
     mock_api_instance.token = "test-token"
+    mock_api_instance.story_points_field = "customfield_10016"
     mock_jira_api_class.return_value = mock_api_instance
     
     mock_jira_instance = Mock()

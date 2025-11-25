@@ -21,7 +21,7 @@ def get_bug_id(summary):
     return id
 
 
-def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only):
+def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only, story_points_field='customfield_10016'):
     if not jira_api or not project:
         return {}, {}
 
@@ -80,8 +80,8 @@ def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only):
     
     # Calculate story points
     for issue in all_issues:
-        # Story points are typically in customfield_10016, but can vary
-        story_points = getattr(issue.fields, 'customfield_10016', None)
+        # Story points are in a configurable custom field
+        story_points = getattr(issue.fields, story_points_field, None)
         if story_points:
             analytics["total_story_points"] += float(story_points)
             # Check if this issue is completed
@@ -203,7 +203,7 @@ def main(args=None):
     print(sprint) # Insert blank line to avoid md format issue
       
     # Create a set of all Jira issues completed in a given sprint
-    issues, analytics = find_issue_in_jira_sprint(jira, opts.project, sprint, opts.analytics_only)
+    issues, analytics = find_issue_in_jira_sprint(jira, opts.project, sprint, opts.analytics_only, api.story_points_field)
 
     if opts.analytics_only:
         # Mode 1: Print only analytics (sprint name already printed above)
