@@ -56,7 +56,7 @@ def test_insert_bug_link():
 
 def test_find_issue_in_jira_sprint_no_api(mock_jira_api):
     """Test find_issue_in_jira_sprint with no API"""
-    issues, analytics = find_issue_in_jira_sprint(None, "TEST", "Sprint 1")
+    issues, analytics = find_issue_in_jira_sprint(None, "TEST", "Sprint 1", False)
     assert issues == {}
     assert analytics == {}
 
@@ -66,6 +66,7 @@ def test_find_issue_in_jira_sprint_with_issues(mock_jira_api, mock_issue):
     # Setup mock completed issue without parent (no epic)
     completed_issue = mock_issue
     completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
+    completed_issue.fields.customfield_10024 = 5.0  # Story points for correct field
     # Remove parent attribute to avoid epic lookup
     if hasattr(completed_issue.fields, "parent"):
         delattr(completed_issue.fields, "parent")
@@ -74,7 +75,7 @@ def test_find_issue_in_jira_sprint_with_issues(mock_jira_api, mock_issue):
     all_issue = Mock()
     all_issue.key = "TEST-124"
     all_issue.fields = Mock()
-    all_issue.fields.customfield_10016 = 3.0  # Story points
+    all_issue.fields.customfield_10024 = 3.0  # Story points for correct field
     if hasattr(all_issue.fields, "parent"):
         delattr(all_issue.fields, "parent")
     
@@ -83,7 +84,7 @@ def test_find_issue_in_jira_sprint_with_issues(mock_jira_api, mock_issue):
         [completed_issue, all_issue]  # Second call for all issues
     ])
     
-    issues, analytics = find_issue_in_jira_sprint(mock_jira_api, "TEST", "Sprint 1")
+    issues, analytics = find_issue_in_jira_sprint(mock_jira_api, "TEST", "Sprint 1", False)
     
     assert len(issues) == 1
     assert "TEST-123" in issues
@@ -173,6 +174,60 @@ def test_print_analytics_with_issues_without_story_points(capsys):
     assert "Issues without story points: 3" in captured.out
 
 
+def test_find_issue_in_jira_sprint_with_zero_story_points(mock_jira_api, mock_issue):
+    """Test that issues with 0 story points are counted correctly (not as 'without story points')"""
+    # Setup mock completed issue with 0 story points
+    completed_issue = mock_issue
+    completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
+    completed_issue.fields.customfield_10024 = 0  # Explicitly 0 story points
+    if hasattr(completed_issue.fields, "parent"):
+        delattr(completed_issue.fields, "parent")
+    
+    # Setup mock issue with None story points (no story points)
+    issue_without_sp = Mock()
+    issue_without_sp.key = "TEST-124"
+    issue_without_sp.fields = Mock()
+    issue_without_sp.fields.customfield_10024 = None  # No story points
+    if hasattr(issue_without_sp.fields, "parent"):
+        delattr(issue_without_sp.fields, "parent")
+    
+    mock_jira_api.search_issues = Mock(side_effect=[
+        [completed_issue],  # First call for completed issues
+        [completed_issue, issue_without_sp]  # Second call for all issues
+    ])
+    
+    issues, analytics = find_issue_in_jira_sprint(mock_jira_api, "TEST", "Sprint 1", False)
+    
+    assert len(issues) == 1
+    assert "TEST-123" in issues
+    assert analytics["total_issues"] == 2
+    assert analytics["completed_issues"] == 1
+    # 0 story points should be counted (not ignored)
+    assert analytics["total_story_points"] == 0.0
+    assert analytics["completed_story_points"] == 0.0
+    # Only the issue with None should be counted as without story points
+    assert analytics["issues_without_story_points"] == 1
+
+
+def test_print_analytics_with_zero_story_points(capsys):
+    """Test print_analytics correctly displays when there are 0 story points (not empty)"""
+    analytics = {
+        "total_issues": 5,
+        "completed_issues": 3,
+        "total_story_points": 0.0,  # Explicitly 0, not None
+        "completed_story_points": 0.0,
+        "issues_without_story_points": 0  # All issues have story points (even if 0)
+    }
+    
+    print_analytics(analytics)
+    captured = capsys.readouterr()
+    
+    assert "Sprint Analytics:" in captured.out
+    assert "3/5 completed (60.0%)" in captured.out
+    # When total is 0, should show "Not tracked or not available"
+    assert "Not tracked or not available" in captured.out
+    assert "Issues without story points: 0" in captured.out
+
 
 @patch('SprintReport.sprint_report.jira_api')
 @patch('SprintReport.sprint_report.JIRA')
@@ -191,13 +246,14 @@ def test_main_with_analytics_only_flag(mock_jira_class, mock_jira_api_class, cap
     # Setup mock issue
     completed_issue = mock_issue
     completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
+    completed_issue.fields.customfield_10024 = 5.0
     if hasattr(completed_issue.fields, "parent"):
         delattr(completed_issue.fields, "parent")
     
     all_issue = Mock()
     all_issue.key = "TEST-124"
     all_issue.fields = Mock()
-    all_issue.fields.customfield_10016 = 3.0
+    all_issue.fields.customfield_10024 = 3.0
     if hasattr(all_issue.fields, "parent"):
         delattr(all_issue.fields, "parent")
     
@@ -223,7 +279,7 @@ def test_main_with_analytics_only_flag(mock_jira_class, mock_jira_api_class, cap
 @patch('SprintReport.sprint_report.jira_api')
 @patch('SprintReport.sprint_report.JIRA')
 def test_main_default_mode_all(mock_jira_class, mock_jira_api_class, capsys, mock_issue):
-    """Test main function without any flags (default behavior - shows both report and analytics)"""
+    """Test main function without any flags (default behavior - shows only detailed report)"""
     # Setup mocks
     mock_api_instance = Mock()
     mock_api_instance.server = "https://jira.example.com"
@@ -237,13 +293,14 @@ def test_main_default_mode_all(mock_jira_class, mock_jira_api_class, capsys, moc
     # Setup mock issue
     completed_issue = mock_issue
     completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
+    completed_issue.fields.customfield_10024 = 5.0
     if hasattr(completed_issue.fields, "parent"):
         delattr(completed_issue.fields, "parent")
     
     all_issue = Mock()
     all_issue.key = "TEST-124"
     all_issue.fields = Mock()
-    all_issue.fields.customfield_10016 = 3.0
+    all_issue.fields.customfield_10024 = 3.0
     if hasattr(all_issue.fields, "parent"):
         delattr(all_issue.fields, "parent")
     
@@ -256,20 +313,21 @@ def test_main_default_mode_all(mock_jira_class, mock_jira_api_class, capsys, moc
     main(["TEST", "Sprint 1"])
     captured = capsys.readouterr()
     
-    # Should contain sprint name, detailed report, and analytics
+    # Should contain sprint name and detailed report
     assert "Sprint 1" in captured.out
-    assert "Sprint Analytics:" in captured.out
-    assert "Issues:" in captured.out
     
     # Should contain detailed report sections
     assert "Completed Epics:" in captured.out
     assert "Completed Tasks:" in captured.out
+    
+    # Should NOT contain analytics by default
+    assert "Sprint Analytics:" not in captured.out
 
 
 @patch('SprintReport.sprint_report.jira_api')
 @patch('SprintReport.sprint_report.JIRA')
-def test_main_with_report_only_flag(mock_jira_class, mock_jira_api_class, capsys, mock_issue):
-    """Test main function with --report-only flag (original behavior - no analytics)"""
+def test_main_with_full_report_flag(mock_jira_class, mock_jira_api_class, capsys, mock_issue):
+    """Test main function with --full-report flag (shows both report and analytics)"""
     # Setup mocks
     mock_api_instance = Mock()
     mock_api_instance.server = "https://jira.example.com"
@@ -283,13 +341,14 @@ def test_main_with_report_only_flag(mock_jira_class, mock_jira_api_class, capsys
     # Setup mock issue
     completed_issue = mock_issue
     completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
+    completed_issue.fields.customfield_10024 = 5.0
     if hasattr(completed_issue.fields, "parent"):
         delattr(completed_issue.fields, "parent")
     
     all_issue = Mock()
     all_issue.key = "TEST-124"
     all_issue.fields = Mock()
-    all_issue.fields.customfield_10016 = 3.0
+    all_issue.fields.customfield_10024 = 3.0
     if hasattr(all_issue.fields, "parent"):
         delattr(all_issue.fields, "parent")
     
@@ -298,8 +357,8 @@ def test_main_with_report_only_flag(mock_jira_class, mock_jira_api_class, capsys
         [completed_issue, all_issue]  # Second call for all issues
     ])
     
-    # Call main with --report-only flag
-    main(["TEST", "Sprint 1", "--report-only"])
+    # Call main with --full-report flag
+    main(["TEST", "Sprint 1", "--full-report"])
     captured = capsys.readouterr()
     
     # Should contain sprint name and detailed report
@@ -309,6 +368,6 @@ def test_main_with_report_only_flag(mock_jira_class, mock_jira_api_class, capsys
     assert "Completed Epics:" in captured.out
     assert "Completed Tasks:" in captured.out
     
-    # Should NOT contain analytics section
-    assert "Sprint Analytics:" not in captured.out
+    # Should contain analytics section
+    assert "Sprint Analytics:" in captured.out
 
