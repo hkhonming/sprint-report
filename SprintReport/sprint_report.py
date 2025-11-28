@@ -30,7 +30,8 @@ def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only):
         "total_issues": 0,
         "completed_issues": 0,
         "total_story_points": 0.0,
-        "completed_story_points": 0.0
+        "completed_story_points": 0.0,
+        "issues_without_story_points": 0
     }
 
     sprint_goal = ""
@@ -87,6 +88,9 @@ def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only):
             # Check if this issue is completed
             if issue.key in completed_keys:
                 analytics["completed_story_points"] += float(story_points)
+        else:
+            # Count issues without story points
+            analytics["issues_without_story_points"] += 1
 
     if not analytics_only:
         print("\nPulse Goal:\n{}\n\n".format(sprint_goal))
@@ -164,6 +168,10 @@ def print_analytics(analytics):
         print(f" - Story Points: {completed_sp:.1f} completed (total not available)")
     else:
         print(f" - Story Points: Not tracked or not available")
+    
+    # Issues without story points
+    issues_without_sp = analytics.get("issues_without_story_points", 0)
+    print(f" - Issues without story points: {issues_without_sp}")
     print("")
 
 

@@ -99,7 +99,8 @@ def test_print_analytics_complete_data(capsys):
         "total_issues": 10,
         "completed_issues": 7,
         "total_story_points": 50.0,
-        "completed_story_points": 35.0
+        "completed_story_points": 35.0,
+        "issues_without_story_points": 2
     }
     
     print_analytics(analytics)
@@ -108,6 +109,7 @@ def test_print_analytics_complete_data(capsys):
     assert "Sprint Analytics:" in captured.out
     assert "7/10 completed (70.0%)" in captured.out
     assert "35.0/50.0 completed (70.0%)" in captured.out
+    assert "Issues without story points: 2" in captured.out
 
 
 def test_print_analytics_no_story_points(capsys):
@@ -116,7 +118,8 @@ def test_print_analytics_no_story_points(capsys):
         "total_issues": 5,
         "completed_issues": 3,
         "total_story_points": 0.0,
-        "completed_story_points": 0.0
+        "completed_story_points": 0.0,
+        "issues_without_story_points": 5
     }
     
     print_analytics(analytics)
@@ -125,6 +128,7 @@ def test_print_analytics_no_story_points(capsys):
     assert "Sprint Analytics:" in captured.out
     assert "3/5 completed (60.0%)" in captured.out
     assert "Not tracked or not available" in captured.out
+    assert "Issues without story points: 5" in captured.out
 
 
 def test_print_analytics_empty(capsys):
@@ -140,13 +144,34 @@ def test_print_analytics_zero_total(capsys):
         "total_issues": 0,
         "completed_issues": 0,
         "total_story_points": 0.0,
-        "completed_story_points": 0.0
+        "completed_story_points": 0.0,
+        "issues_without_story_points": 0
     }
     
     print_analytics(analytics)
     captured = capsys.readouterr()
     
     assert "0/0 completed" in captured.out
+
+
+def test_print_analytics_with_issues_without_story_points(capsys):
+    """Test print_analytics displays count of issues without story points"""
+    analytics = {
+        "total_issues": 10,
+        "completed_issues": 7,
+        "total_story_points": 30.0,
+        "completed_story_points": 20.0,
+        "issues_without_story_points": 3
+    }
+    
+    print_analytics(analytics)
+    captured = capsys.readouterr()
+    
+    assert "Sprint Analytics:" in captured.out
+    assert "7/10 completed (70.0%)" in captured.out
+    assert "20.0/30.0 completed" in captured.out
+    assert "Issues without story points: 3" in captured.out
+
 
 
 @patch('SprintReport.sprint_report.jira_api')
