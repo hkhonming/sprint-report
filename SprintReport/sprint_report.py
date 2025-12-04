@@ -86,9 +86,9 @@ def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only):
     
     # Calculate story points
     for issue in all_issues:
-        # Check if issue is in BLOCKED state
-        issue_status = str(issue.fields.status)
-        is_blocked = issue_status == "Blocked"
+        # Check if issue is in BLOCKED state (case-insensitive)
+        issue_status = str(issue.fields.status).lower()
+        is_blocked = issue_status == "blocked"
         
         # Story points are typically in customfield_10016, but can vary
         story_points = getattr(issue.fields, 'customfield_10024', None)
