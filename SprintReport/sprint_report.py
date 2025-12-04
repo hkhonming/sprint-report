@@ -31,7 +31,12 @@ def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only):
         "completed_issues": 0,
         "total_story_points": 0.0,
         "completed_story_points": 0.0,
-        "issues_without_story_points": 0
+        "issues_without_story_points": 0,
+        # Non-blocked statistics (excluding BLOCKED state)
+        "total_issues_non_blocked": 0,
+        "completed_issues_non_blocked": 0,
+        "total_story_points_non_blocked": 0.0,
+        "completed_story_points_non_blocked": 0.0
     }
 
     sprint_goal = ""
@@ -81,6 +86,10 @@ def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only):
     
     # Calculate story points
     for issue in all_issues:
+        # Check if issue is in BLOCKED state
+        issue_status = str(issue.fields.status)
+        is_blocked = issue_status == "Blocked"
+        
         # Story points are typically in customfield_10016, but can vary
         story_points = getattr(issue.fields, 'customfield_10024', None)
         if story_points is not None:
@@ -88,9 +97,21 @@ def find_issue_in_jira_sprint(jira_api, project, sprint, analytics_only):
             # Check if this issue is completed
             if issue.key in completed_keys:
                 analytics["completed_story_points"] += float(story_points)
+            
+            # Track non-blocked statistics
+            if not is_blocked:
+                analytics["total_story_points_non_blocked"] += float(story_points)
+                if issue.key in completed_keys:
+                    analytics["completed_story_points_non_blocked"] += float(story_points)
         else:
             # Count issues without story points
             analytics["issues_without_story_points"] += 1
+        
+        # Track non-blocked issue counts
+        if not is_blocked:
+            analytics["total_issues_non_blocked"] += 1
+            if issue.key in completed_keys:
+                analytics["completed_issues_non_blocked"] += 1
 
     if not analytics_only:
         print("\nPulse Goal:\n{}\n\n".format(sprint_goal))
@@ -168,6 +189,26 @@ def print_analytics(analytics):
         print(f" - Story Points: {completed_sp:.1f} completed (total not available)")
     else:
         print(f" - Story Points: Not tracked or not available")
+    
+    # Non-blocked issues analytics (excluding BLOCKED state)
+    completed_non_blocked = analytics.get("completed_issues_non_blocked", 0)
+    total_non_blocked = analytics.get("total_issues_non_blocked", 0)
+    if total_non_blocked > 0:
+        percentage_non_blocked = (completed_non_blocked / total_non_blocked) * 100
+        print(f" - Issues (Non-Blocked): {completed_non_blocked}/{total_non_blocked} completed ({percentage_non_blocked:.1f}%)")
+    else:
+        print(f" - Issues (Non-Blocked): {completed_non_blocked}/{total_non_blocked} completed")
+    
+    # Non-blocked story points analytics (excluding BLOCKED state)
+    completed_sp_non_blocked = analytics.get("completed_story_points_non_blocked", 0.0)
+    total_sp_non_blocked = analytics.get("total_story_points_non_blocked", 0.0)
+    if total_sp_non_blocked > 0:
+        percentage_sp_non_blocked = (completed_sp_non_blocked / total_sp_non_blocked) * 100
+        print(f" - Story Points (Non-Blocked): {completed_sp_non_blocked:.1f}/{total_sp_non_blocked:.1f} completed ({percentage_sp_non_blocked:.1f}%)")
+    elif completed_sp_non_blocked > 0:
+        print(f" - Story Points (Non-Blocked): {completed_sp_non_blocked:.1f} completed (total not available)")
+    else:
+        print(f" - Story Points (Non-Blocked): Not tracked or not available")
     
     # Issues without story points
     issues_without_sp = analytics.get("issues_without_story_points", 0)
