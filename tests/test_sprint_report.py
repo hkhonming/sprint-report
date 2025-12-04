@@ -371,3 +371,108 @@ def test_main_with_full_report_flag(mock_jira_class, mock_jira_api_class, capsys
     # Should contain analytics section
     assert "Sprint Analytics:" in captured.out
 
+
+def test_find_issue_in_jira_sprint_with_blocked_issues(mock_jira_api, mock_issue):
+    """Test find_issue_in_jira_sprint correctly counts blocked and non-blocked issues"""
+    # Setup mock completed issue (not blocked)
+    completed_issue = mock_issue
+    completed_issue.fields.customfield_10020 = [Mock(name="Sprint 1", goal="Test goal")]
+    completed_issue.fields.customfield_10024 = 5.0  # Story points
+    completed_issue.fields.status = Mock()
+    completed_issue.fields.status.__str__ = Mock(return_value="Done")
+    if hasattr(completed_issue.fields, "parent"):
+        delattr(completed_issue.fields, "parent")
+    
+    # Setup mock blocked issue (not completed)
+    blocked_issue = Mock()
+    blocked_issue.key = "TEST-124"
+    blocked_issue.fields = Mock()
+    blocked_issue.fields.customfield_10024 = 3.0  # Story points
+    blocked_issue.fields.status = Mock()
+    blocked_issue.fields.status.__str__ = Mock(return_value="Blocked")
+    if hasattr(blocked_issue.fields, "parent"):
+        delattr(blocked_issue.fields, "parent")
+    
+    # Setup mock non-blocked issue (not completed)
+    non_blocked_issue = Mock()
+    non_blocked_issue.key = "TEST-125"
+    non_blocked_issue.fields = Mock()
+    non_blocked_issue.fields.customfield_10024 = 2.0  # Story points
+    non_blocked_issue.fields.status = Mock()
+    non_blocked_issue.fields.status.__str__ = Mock(return_value="In Progress")
+    if hasattr(non_blocked_issue.fields, "parent"):
+        delattr(non_blocked_issue.fields, "parent")
+    
+    mock_jira_api.search_issues = Mock(side_effect=[
+        [completed_issue],  # First call for completed issues
+        [completed_issue, blocked_issue, non_blocked_issue]  # Second call for all issues
+    ])
+    
+    issues, analytics = find_issue_in_jira_sprint(mock_jira_api, "TEST", "Sprint 1", False)
+    
+    # Check overall stats
+    assert analytics["total_issues"] == 3
+    assert analytics["completed_issues"] == 1
+    assert analytics["total_story_points"] == 10.0  # 5.0 + 3.0 + 2.0
+    assert analytics["completed_story_points"] == 5.0
+    
+    # Check non-blocked stats (should exclude the blocked issue)
+    assert analytics["total_issues_non_blocked"] == 2  # completed + in progress (excluding blocked)
+    assert analytics["completed_issues_non_blocked"] == 1
+    assert analytics["total_story_points_non_blocked"] == 7.0  # 5.0 + 2.0 (excluding 3.0 from blocked)
+    assert analytics["completed_story_points_non_blocked"] == 5.0
+
+
+def test_print_analytics_with_non_blocked_stats(capsys):
+    """Test print_analytics displays non-blocked statistics"""
+    analytics = {
+        "total_issues": 10,
+        "completed_issues": 5,
+        "total_story_points": 50.0,
+        "completed_story_points": 25.0,
+        "issues_without_story_points": 2,
+        # Non-blocked stats
+        "total_issues_non_blocked": 8,
+        "completed_issues_non_blocked": 5,
+        "total_story_points_non_blocked": 40.0,
+        "completed_story_points_non_blocked": 25.0
+    }
+    
+    print_analytics(analytics)
+    captured = capsys.readouterr()
+    
+    assert "Sprint Analytics:" in captured.out
+    # Regular stats
+    assert "Issues: 5/10 completed (50.0%)" in captured.out
+    assert "Story Points: 25.0/50.0 completed (50.0%)" in captured.out
+    # Non-blocked stats
+    assert "Issues (Non-Blocked): 5/8 completed (62.5%)" in captured.out
+    assert "Story Points (Non-Blocked): 25.0/40.0 completed (62.5%)" in captured.out
+    assert "Issues without story points: 2" in captured.out
+
+
+def test_print_analytics_with_all_blocked(capsys):
+    """Test print_analytics when all issues are blocked"""
+    analytics = {
+        "total_issues": 5,
+        "completed_issues": 0,
+        "total_story_points": 20.0,
+        "completed_story_points": 0.0,
+        "issues_without_story_points": 0,
+        # All blocked
+        "total_issues_non_blocked": 0,
+        "completed_issues_non_blocked": 0,
+        "total_story_points_non_blocked": 0.0,
+        "completed_story_points_non_blocked": 0.0
+    }
+    
+    print_analytics(analytics)
+    captured = capsys.readouterr()
+    
+    assert "Sprint Analytics:" in captured.out
+    # Regular stats
+    assert "Issues: 0/5 completed (0.0%)" in captured.out
+    # Non-blocked stats should show 0/0
+    assert "Issues (Non-Blocked): 0/0 completed" in captured.out
+    assert "Story Points (Non-Blocked): Not tracked or not available" in captured.out
+
